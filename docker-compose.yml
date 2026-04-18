@@ -1,0 +1,267 @@
+version: '3.9'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# epiguard-ai — Docker Compose
+# ML training, model development, and AI service runtime
+# Usage:
+#   Training mode:   docker-compose --profile train up
+#   Dev/API mode:    docker-compose --profile dev up
+#   Full stack:      docker-compose --profile full up
+# ═══════════════════════════════════════════════════════════════════════════════
+
+x-common-env: &common-env
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  POSTGRES_DB: ${POSTGRES_DB:-epiguard}
+  POSTGRES_USER: ${POSTGRES_USER:-epiguard}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-epiguard_dev}
+  REDIS_HOST: ${REDIS_HOST:-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev}
+  GRPC_PORT: ${GRPC_PORT:-50051}
+  HTTP_PORT: ${HTTP_PORT:-8000}
+  MODEL_PATH: /app/app/model/epiguard-ai.pkl
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+
+  # ─── Infrastructure ───────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: epiguard-ai-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-epiguard}
+      POSTGRES_USER: ${POSTGRES_USER:-epiguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-epiguard_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./scripts/seed_training_data.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-epiguard} -d ${POSTGRES_DB:-epiguard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - dev
+      - train
+      - full
+
+  redis:
+    image: redis:7-alpine
+    container_name: epiguard-ai-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_dev}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_dev}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - dev
+      - full
+
+  # ─── epiguard-ai API (HTTP + gRPC server) ─────────────────────────────────
+
+  epiguard-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: epiguard-ai-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+    ports:
+      - "${HTTP_PORT:-8000}:8000"    # FastAPI HTTP
+      - "${GRPC_PORT:-50051}:50051"  # gRPC server
+    volumes:
+      # Mount model directory so trained models persist across restarts
+      - model_store:/app/app/model
+      # Mount source in dev for hot reload
+      - ./app:/app/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - dev
+      - full
+
+  # ─── Model Training Service ───────────────────────────────────────────────
+  # Runs once, trains the model, saves epiguard-ai.pkl, then exits.
+  # Trigger manually: docker-compose --profile train run --rm model-trainer
+
+  model-trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: trainer
+    container_name: epiguard-ai-trainer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      TRAINING_MODE: full               # full | retrain | bootstrap
+      TRAIN_TEST_SPLIT: 0.2
+      RANDOM_STATE: 42
+      # Phase 1 — Logistic Regression
+      MODEL_TYPE: ${MODEL_TYPE:-logistic_regression}
+      # Phase 2 options: xgboost | lightgbm | random_forest
+    volumes:
+      - model_store:/app/app/model      # Trained model saved here
+      - ./training_reports:/app/reports # Metrics + confusion matrix output
+      - ./app:/app/app
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - train
+    # Run once and exit — not a long-running service
+    restart: "no"
+
+  # ─── Jupyter Lab (for EDA, training experiments, SHAP analysis) ───────────
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: jupyter
+    container_name: epiguard-ai-jupyter
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-epiguard_dev}
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks      # EDA + experiment notebooks
+      - ./app:/app/app                  # Access to model code
+      - model_store:/app/app/model      # Access to saved models
+      - ./data:/app/data                # Training data (gitignored)
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - dev
+      - train
+    restart: unless-stopped
+
+  # ─── MLflow Tracking Server (Phase 2 — experiment tracking) ───────────────
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.12.1
+    container_name: epiguard-ai-mlflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://${POSTGRES_USER:-epiguard}:${POSTGRES_PASSWORD:-epiguard_dev}@postgres:5432/${POSTGRES_DB:-epiguard}
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlartifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_artifacts:/mlartifacts
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://${POSTGRES_USER:-epiguard}:${POSTGRES_PASSWORD:-epiguard_dev}@postgres:5432/${POSTGRES_DB:-epiguard}
+      --default-artifact-root /mlartifacts
+      --host 0.0.0.0
+      --port 5000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - full
+    restart: unless-stopped
+
+  # ─── Prometheus (metrics scraping) ────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: epiguard-ai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - full
+    restart: unless-stopped
+
+  # ─── Grafana (metrics dashboard) ──────────────────────────────────────────
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: epiguard-ai-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-epiguard_dev}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - epiguard-ai-net
+    profiles:
+      - full
+    restart: unless-stopped
+
+# ─── Volumes ────────────────────────────────────────────────────────────────
+
+volumes:
+  postgres_data:
+    name: epiguard-ai-postgres-data
+  redis_data:
+    name: epiguard-ai-redis-data
+  model_store:
+    name: epiguard-ai-model-store
+    # Named volume so epiguard-ai.pkl survives container restarts
+  mlflow_artifacts:
+    name: epiguard-ai-mlflow-artifacts
+  prometheus_data:
+    name: epiguard-ai-prometheus-data
+  grafana_data:
+    name: epiguard-ai-grafana-data
+
+# ─── Networks ───────────────────────────────────────────────────────────────
+
+networks:
+  epiguard-ai-net:
+    name: epiguard-ai-network
+    driver: bridge
