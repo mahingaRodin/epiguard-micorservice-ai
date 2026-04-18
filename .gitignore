@@ -1,0 +1,128 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# epiguard-ai — .gitignore
+# Python · FastAPI · scikit-learn · gRPC · ML training
+# Place this file in: epiguard-ai/
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ─── SECRETS & ENVIRONMENT ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+
+# ─── PYTHON CACHE & BYTECODE ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+
+# ─── VIRTUAL ENVIRONMENTS ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env/
+.python-version
+
+
+# ─── PACKAGING / DISTRIBUTION ─────────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+.eggs/
+wheels/
+
+
+# ─── TESTING & COVERAGE ───────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+
+
+# ─── TYPE CHECKING & LINTING ──────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+
+# ─── JUPYTER NOTEBOOKS ────────────────────────────────────────────────────────
+# Keep .ipynb files if you use them for EDA / training experiments
+# Ignore only checkpoint clutter
+.ipynb_checkpoints/
+
+
+# ─── ML MODEL FILES ───────────────────────────────────────────────────────────
+# Trained model artefacts — can be 100MB+
+# Track with Git LFS once you have a real trained model:
+#   git lfs track "*.pkl"
+#   git lfs track "*.joblib"
+app/model/epiguard-ai.pkl
+app/model/*.pkl
+app/model/*.joblib
+app/model/*.h5
+app/model/*.pt
+app/model/*.pth
+app/model/*.onnx
+app/model/*.bin
+
+# Training data — never commit raw patient data
+data/
+datasets/
+*.csv
+*.parquet
+*.feather
+*.arrow
+
+
+# ─── MLFLOW / EXPERIMENT TRACKING ────────────────────────────────────────────
+mlruns/
+mlartifacts/
+mlflow.db
+
+
+# ─── PROTO-GENERATED FILES ────────────────────────────────────────────────────
+# Regenerated at Docker build time via grpc_tools.protoc
+# Source of truth is /proto/triage.proto
+triage_pb2.py
+triage_pb2_grpc.py
+*_pb2.py
+*_pb2_grpc.py
+
+
+# ─── LOGS ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+
+# ─── OS FILES ─────────────────────────────────────────────────────────────────
+.DS_Store
+._*
+Thumbs.db
+*~
+
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+!.vscode/extensions.json
+*.iml
+
+
+# ─── TEMPORARY ────────────────────────────────────────────────────────────────
+*.tmp
+*.temp
+*.swp
+*.bak
+tmp/
+scratch/
