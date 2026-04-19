@@ -1,0 +1,253 @@
+name: epiguard-ai CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - test
+      - headie-one
+  pull_request:
+    branches:
+      - main
+    
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/epiguard-ai
+  PYTHON_VERSION: "3.11"
+ 
+# ─── Jobs
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+ 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: epiguard_test
+          POSTGRES_USER: epiguard
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U epiguard -d epiguard_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+ 
+      # Spin up Redis for integration tests
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+ 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+ 
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+ 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+ 
+      - name: Generate gRPC proto files
+        run: |
+          python -m grpc_tools.protoc \
+            -I proto \
+            --python_out=. \
+            --grpc_python_out=. \
+            proto/triage.proto
+ 
+      - name: Run unit tests
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: epiguard_test
+          POSTGRES_USER: epiguard
+          POSTGRES_PASSWORD: test_password
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_PASSWORD: ""
+          LOG_LEVEL: WARNING
+        run: |
+          pytest tests/unit \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            -v
+ 
+      - name: Run integration tests
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: epiguard_test
+          POSTGRES_USER: epiguard
+          POSTGRES_PASSWORD: test_password
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_PASSWORD: ""
+          LOG_LEVEL: WARNING
+        run: |
+          pytest tests/integration \
+            -v \
+            --tb=short
+ 
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+ 
+ 
+  build:
+    name: Build & push Docker image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+ 
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      short_sha: ${{ steps.vars.outputs.short_sha }}
+ 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+ 
+      - name: Set short SHA
+        id: vars
+        run: echo "short_sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+ 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+ 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+ 
+      - name: Extract Docker metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            # Tag with git sha on every push
+            type=sha,prefix=sha-,format=short
+            # Tag as 'latest' only on main
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # Tag with branch name on develop
+            type=ref,event=branch
+ 
+      - name: Build and push runtime image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runtime
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache layers from previous builds — speeds up CI significantly
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+ 
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+ 
+    # Prevent two deploys running at the same time
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+ 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+ 
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          # All commands run on your VPS
+          script: |
+            set -e
+ 
+            echo "── Pulling latest image ──"
+            docker pull ${{ env.DOCKER_IMAGE }}:latest
+ 
+            echo "── Navigating to project directory ──"
+            cd /opt/epiguard-ai
+ 
+            echo "── Writing .env from secrets ──"
+            cat > .env << 'ENVEOF'
+            HTTP_PORT=8000
+            GRPC_PORT=50051
+            LOG_LEVEL=INFO
+            MODEL_TYPE=logistic_regression
+            POSTGRES_HOST=postgres
+            POSTGRES_PORT=5432
+            POSTGRES_DB=epiguard
+            POSTGRES_USER=epiguard
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            REDIS_HOST=redis
+            REDIS_PORT=6379
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            ENVEOF
+ 
+            echo "── Pulling all service images ──"
+            docker-compose pull epiguard-ai
+ 
+            echo "── Restarting epiguard-ai service ──"
+            docker-compose --profile dev up -d --no-deps epiguard-ai
+ 
+            echo "── Waiting for health check ──"
+            sleep 10
+            docker-compose ps epiguard-ai
+ 
+            echo "── Verifying health endpoint ──"
+            curl -sf http://localhost:8000/health || (echo "Health check failed" && exit 1)
+ 
+            echo "── Cleaning up old images ──"
+            docker image prune -f
+ 
+            echo "── Deploy complete ──"
+ 
+  notify:
+    name: Notify deployment result
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always() && github.ref == 'refs/heads/main'
+ 
+    steps:
+      - name: Deployment succeeded
+        if: needs.deploy.result == 'success'
+        run: |
+          echo "✅ epiguard-ai deployed successfully"
+          echo "   Commit : ${{ github.sha }}"
+          echo "   Author : ${{ github.actor }}"
+          echo "   Message: ${{ github.event.head_commit.message }}"
+ 
+      - name: Deployment failed
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "❌ Deployment failed — check logs above"
+          exit 1
