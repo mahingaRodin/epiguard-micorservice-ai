@@ -1,0 +1,10 @@
+DOCKER_USERNAME
+DOCKER_PASSWORD
+VPS_HOST
+VPS_USER
+VPS_PASSWORD // VPS_SSH_KEY
+VPS_PORT
+POSTGRES_PASSWORD
+REDIS_PASSWORD
+
+//All of these need to be added to your working repo secrets.
