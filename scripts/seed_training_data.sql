@@ -1,0 +1,3 @@
+-- Seed synthetic training data for local dev
+-- Replace with real anonymised clinic data when available
+-- No names, no PII — age + gender + district + symptoms only
