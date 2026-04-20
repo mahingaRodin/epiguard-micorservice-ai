@@ -1,357 +1,384 @@
 <div align="center">
 
-# EpiGuard
+<br/>
 
-**Real-Time National Epidemic Intelligence & Outbreak Detection System**
+```
+███████╗██████╗ ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ██████╗
+██╔════╝██╔══██╗██║██╔════╝ ██║   ██║██╔══██╗██╔══██╗██╔══██╗
+█████╗  ██████╔╝██║██║  ███╗██║   ██║███████║██████╔╝██║  ██║
+██╔══╝  ██╔═══╝ ██║██║   ██║██║   ██║██╔══██║██╔══██╗██║  ██║
+███████╗██║     ██║╚██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝
+╚══════╝╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝
+```
 
-[![Java](https://img.shields.io/badge/Java_17-1a202c?style=flat&logo=openjdk&logoColor=ed8b00)](https://openjdk.org/)
-[![Python](https://img.shields.io/badge/Python_3.11-1a202c?style=flat&logo=python&logoColor=3776ab)](https://python.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.2-1a202c?style=flat&logo=spring-boot&logoColor=6db33f)](https://spring.io/projects/spring-boot)
-[![FastAPI](https://img.shields.io/badge/FastAPI-1a202c?style=flat&logo=fastapi&logoColor=009688)](https://fastapi.tiangolo.com/)
-[![Kafka](https://img.shields.io/badge/Apache_Kafka-1a202c?style=flat&logo=apache-kafka&logoColor=white)](https://kafka.apache.org/)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-1a202c?style=flat&logo=kubernetes&logoColor=326ce5)](https://kubernetes.io/)
-[![Docker](https://img.shields.io/badge/Docker-1a202c?style=flat&logo=docker&logoColor=2496ed)](https://docker.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16-1a202c?style=flat&logo=postgresql&logoColor=336791)](https://postgresql.org/)
+**AI-Powered Epidemic Risk Prediction & Disease Intelligence Engine**
 
-*Detect outbreaks before they escalate — event-driven, AI-powered, nationally scalable.*
+<br/>
+
+[![Python](https://img.shields.io/badge/Python_3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![gRPC](https://img.shields.io/badge/gRPC-244c5a?style=for-the-badge&logo=grpc&logoColor=white)](https://grpc.io/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com/)
+
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Active_Development-brightgreen?style=flat-square)]()
+[![Author](https://img.shields.io/badge/Author-Mahinga_Rodin-blue?style=flat-square)](https://github.com/mahingarodin)
+
+<br/>
+
+> *From raw symptom data to actionable outbreak intelligence — in milliseconds.*
+
+<br/>
 
 </div>
 
 ---
 
-## What is EpiGuard?
+## What is epiguard-ai?
 
-EpiGuard is a distributed real-time health intelligence platform built for national-scale epidemic surveillance. Community health workers submit patient symptom data from clinics across Rwanda. That data streams through event pipelines, gets scored by **epiguard-ai** (the integrated ML triage engine), and surfaces as live outbreak intelligence on dashboards used by district officers and national health administrators.
+**epiguard-ai** is the machine learning core of an epidemic early-warning system. It ingests structured patient symptom data and returns calibrated risk predictions that support clinical triage and public health response — before outbreaks escalate.
 
-When a district crosses a configurable case threshold within a rolling time window, EpiGuard fires an automated outbreak alert — before the situation escalates.
+The engine answers three questions instantly:
+
+| Question | Output |
+|---|---|
+| How likely is this an outbreak case? | `risk_score` → 0.0 – 1.0 probability |
+| How urgent is this case? | `priority_level` → LOW / MEDIUM / HIGH |
+| What disease family is this? | `predicted_disease` → Respiratory / Gastrointestinal / Febrile / Arboviral |
+
+It is designed to run in real clinical environments and exposes two interfaces:
+
+- **gRPC** — primary interface for production, low-latency microservice communication
+- **REST API** — secondary interface for testing, integration, and fallback
 
 ---
 
-## System Architecture
+## Architecture at a Glance
 
 ```
-                        ┌─────────────────────┐
-                        │    React Frontend    │
-                        │  TypeScript + WS     │
-                        └────────┬────────────┘
-                                 │ HTTPS
-                        ┌────────▼────────────┐
-                        │    API Gateway       │
-                        │  JWT · Routing       │
-                        └──┬──┬──┬──┬──┬──────┘
-                           │  │  │  │  │
-          ┌────────────────┘  │  │  │  └──────────────────┐
-          │               ┌───┘  └───┐                     │
-          ▼               ▼          ▼                     ▼
-    ┌──────────┐   ┌───────────┐ ┌──────────┐   ┌─────────────────┐
-    │   Auth   │   │  Symptom  │ │ Triage   │   │   Dashboard     │
-    │  Service │   │  Service  │ │ Service  │   │   Service       │
-    └──────────┘   └─────┬─────┘ └────┬─────┘   └────────┬────────┘
-                         │            │  gRPC             │
-                    ┌────▼────────────▼───────────────────▼────┐
-                    │           Apache Kafka Event Bus          │
-                    │  symptom-events · triage-events ·         │
-                    │  alert-events  (partitioned by district)  │
-                    └────────────────┬──────────────────────────┘
-                                     │
-                          ┌──────────▼──────────┐
-                          │    Alert Service     │
-                          │  Threshold detection │
-                          └──────────┬──────────┘
-                                     │ gRPC
-                          ┌──────────▼──────────┐
-                          │    epiguard-ai       │
-                          │  FastAPI · Python    │
-                          │  scikit-learn model  │
-                          └──────────┬──────────┘
-                                     │
-                    ┌────────────────▼────────────────┐
-                    │           Data Layer            │
-                    │    PostgreSQL 16 · Redis 7      │
-                    └─────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER                         │
+│              gRPC (prod)  ─── REST API (dev/fallback)       │
+└───────────────────────────────┬─────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    PREDICTION SERVICE                        │
+│          Input validation → Feature engineering             │
+└───────────────────────────────┬─────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      ML INFERENCE CORE                       │
+│   StandardScaler  →  Logistic Regression  →  Risk Output    │
+│              [epiguard-ai.pkl — 14 features]                 │
+└───────────────────────────────┬─────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       RESPONSE LAYER                         │
+│        risk_score + priority_level + predicted_disease       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Microservices
+## Features
 
-| Service | Language | Port | Role |
-|---|---|---|---|
-| `api-gateway` | Java · Spring Boot | `8080` | Single entry point — JWT validation, rate limiting, routing |
-| `auth-service` | Java · Spring Boot | `8081` | Login, registration, JWT issue & refresh |
-| `symptom-service` | Java · Spring Boot | `8082` | Patient creation, symptom submission, Kafka producer |
-| `triage-service` | Java · Spring Boot | `8083` | Kafka consumer → calls epiguard-ai via gRPC → stores results |
-| `alert-service` | Java · Spring Boot | `8084` | Rolling-window threshold detection, outbreak alert generation |
-| `dashboard-service` | Java · Spring Boot | `8085` | Read-optimised aggregations, Redis-cached summaries |
-| `epiguard-ai` | Python · FastAPI | `8000` / `50051` | ML risk scoring + disease clustering — HTTP + gRPC |
+### 🔬 Risk Prediction
+Supervised ML model evaluates symptom patterns and returns a calibrated risk probability with priority classification.
+
+### 🦠 Disease Clustering
+Symptoms are grouped into four disease families: **Respiratory**, **Gastrointestinal**, **Febrile**, and **Arboviral**.
+
+### ⚡ Real-Time Inference
+Prediction latency is optimized for live clinical environments. Target: **< 100ms per prediction**, **< 200ms API round-trip**.
+
+### 🤖 Auto-Training Fallback
+If no trained model is found at startup, the engine trains a baseline model automatically and stores it for reuse.
 
 ---
 
-## epiguard-ai — The ML Engine
+## Model: Phase 1 — MVP
 
-epiguard-ai is EpiGuard's embedded intelligence layer. It receives patient symptom vectors from the Triage Service over gRPC and returns a structured risk prediction.
-
-### Phase 1 — MVP model
 | Property | Detail |
 |---|---|
-| Algorithm | Logistic Regression (scikit-learn pipeline with StandardScaler) |
-| Input features | Age (normalised), gender (encoded), 12 symptom severity scores |
-| Output | `risk_score` (0.0–1.0), `priority_level` (LOW / MEDIUM / HIGH), `predicted_disease` |
-| Model file | `epiguard-ai.pkl` — auto-trained on first boot if not present |
-| Disease clustering | Rule-based symptom co-occurrence: Respiratory, GI, Febrile, Arboviral |
-| Transport | gRPC port `50051` (primary) + REST `/ml/predict` (HTTP fallback / testing) |
+| Algorithm | Logistic Regression |
+| Pipeline | `StandardScaler` → `LogisticRegression` |
+| Library | scikit-learn |
+| Model File | `models/epiguard-ai.pkl` |
+| Input Features | 14 |
+| Outputs | `risk_score`, `priority_level`, `predicted_disease` |
 
-### Phase 2 — Advanced
-- XGBoost / LightGBM for improved accuracy on imbalanced outbreak data
-- DBSCAN geographic clustering for spatial outbreak zone detection
-- Facebook Prophet for district-level case forecasting
-- SHAP values for explainability — why was this case flagged HIGH?
-- MLflow for experiment tracking and model versioning
+### Feature Vector (14 inputs)
 
-### Feature vector layout (length: 14)
-```
-Index  Feature
-  0    age / 100.0
-  1    gender_encoded / 2.0       MALE=0, FEMALE=1, OTHER=2
-  2    fever / 5.0
-  3    cough / 5.0
-  4    fatigue / 5.0
-  5    shortness_of_breath / 5.0
-  6    headache / 5.0
-  7    diarrhea / 5.0
-  8    vomiting / 5.0
-  9    rash / 5.0
- 10    joint_pain / 5.0
- 11    chest_pain / 5.0
- 12    sore_throat / 5.0
- 13    runny_nose / 5.0
-```
+All inputs are normalized before inference to ensure consistent model behavior.
 
----
-
-## Kafka Topics
-
-| Topic | Partitioned by | Producer | Consumer(s) |
-|---|---|---|---|
-| `symptom-events` | district | `symptom-service` | `triage-service` |
-| `triage-events` | district | `triage-service` | `alert-service`, `dashboard-service` |
-| `alert-events` | district | `alert-service` | `dashboard-service` |
-
----
-
-## User Roles
-
-| Role | Scope | Capabilities |
+| Index | Feature | Normalization |
 |---|---|---|
-| CHW | Clinic | Submit symptoms, view own patient triage results |
-| Doctor | Clinic | View all clinic patients, confirm or override AI triage |
-| District Officer | District | Monitor outbreaks, view regional trends, receive alerts |
-| Admin | National | Full system access — user management, all dashboards, configs |
+| 0 | age | ÷ 100.0 |
+| 1 | gender_encoded | ÷ 2.0 |
+| 2 | fever | ÷ 5.0 |
+| 3 | cough | ÷ 5.0 |
+| 4 | fatigue | ÷ 5.0 |
+| 5 | shortness_of_breath | ÷ 5.0 |
+| 6 | headache | ÷ 5.0 |
+| 7 | diarrhea | ÷ 5.0 |
+| 8 | vomiting | ÷ 5.0 |
+| 9 | rash | ÷ 5.0 |
+| 10 | joint_pain | ÷ 5.0 |
+| 11 | chest_pain | ÷ 5.0 |
+| 12 | sore_throat | ÷ 5.0 |
+| 13 | runny_nose | ÷ 5.0 |
 
 ---
 
-## Database Schema
+## Project Structure
 
 ```
-clinics ──< users
-clinics ──< patients
-users   ──< patients  (submitted_by)
-patients ──< symptoms
-patients ──1 triage_results
-alerts   (standalone — triggered by district threshold logic)
+epiguard-ai/
+│
+├── app/
+│   ├── api/
+│   │   ├── routes.py              # REST prediction endpoint
+│   │   └── health.py              # Health check endpoint
+│   │
+│   ├── grpc/
+│   │   ├── server.py              # gRPC server entrypoint
+│   │   └── service.py             # gRPC service implementation
+│   │
+│   ├── models/
+│   │   ├── train.py               # Model training pipeline
+│   │   ├── predict.py             # Inference logic
+│   │   └── model_loader.py        # Model loading + auto-train fallback
+│   │
+│   ├── services/
+│   │   └── prediction_service.py  # Core prediction orchestration
+│   │
+│   ├── utils/
+│   │   └── feature_builder.py     # Symptom → feature vector transformation
+│   │
+│   └── schemas/
+│       └── request_models.py      # Pydantic input/output schemas
+│
+├── models/
+│   └── epiguard-ai.pkl            # Trained model artifact
+│
+├── notebooks/
+│   └── exploratory_analysis.ipynb
+│
+├── tests/
+│   ├── test_prediction.py
+│   └── test_features.py
+│
+├── main.py                        # FastAPI application entrypoint
+├── requirements.txt
+├── Dockerfile
+└── README.md
 ```
-
-Key design decisions:
-- **No PII stored** — patients are UUID + age + gender + district only
-- All tables use UUID primary keys (`uuid-ossp`)
-- Indexes on `district`, `created_at`, `priority_level` for dashboard query performance
-- Enums enforced at DB level (`user_role`, `priority_level`, `alert_severity`)
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Docker Desktop
-- Java 17+
+
 - Python 3.11+
-- Maven 3.9+
+- pip
+- virtualenv *(recommended)*
 
-### 1. Clone
+### 1. Clone & Set Up Environment
 
 ```bash
-git clone https://github.com/mahingarodin/epiguard.git
-cd epiguard
+git clone https://github.com/mahingarodin/epiguard-ai.git
+cd epiguard-ai
+
+python -m venv venv
+source venv/bin/activate        # macOS / Linux
+# venv\Scripts\activate         # Windows
 ```
 
-### 2. Environment
+### 2. Install Dependencies
 
 ```bash
-cp .env.example .env
-# Set: JWT_SECRET (min 32 chars), POSTGRES_PASSWORD, REDIS_PASSWORD
+pip install -r requirements.txt
 ```
 
-Generate a secure JWT secret:
+### 3. Run the Service
+
+**Start the REST API server:**
 ```bash
-openssl rand -base64 32
+uvicorn main:app --reload
+# → http://localhost:8000
 ```
 
-### 3. Full stack with Docker Compose
-
+**Start the gRPC server:**
 ```bash
-docker-compose up --build
-```
-
-### 4. Verify everything is running
-
-```bash
-# Login as default admin
-curl -X POST http://localhost:8080/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@epiguard.rw","password":"Admin@1234"}'
-
-# epiguard-ai health
-curl http://localhost:8000/health
-
-# Kafka UI
-open http://localhost:8090
+python -m app.grpc.server
+# → localhost:50051
 ```
 
 ---
 
 ## API Reference
 
-### Auth Service
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/auth/login` | None | Login, returns JWT tokens |
-| `POST` | `/auth/register` | None | Register new user |
-| `POST` | `/auth/refresh` | Refresh token | Refresh access token |
-| `GET` | `/auth/validate` | Bearer | Internal — gateway token validation |
+### `POST /ml/predict` — Predict Risk
 
-### Symptom Service
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/patients` | CHW+ | Create anonymised patient record |
-| `POST` | `/symptoms` | CHW+ | Submit symptoms — triggers Kafka → triage pipeline |
+Submit a patient symptom payload and receive a risk assessment.
 
-### Triage Service
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/triage/{patientId}` | DOCTOR+ | Get latest triage result |
+**Request:**
+```json
+{
+  "age": 25,
+  "gender": "MALE",
+  "fever": 3,
+  "cough": 2,
+  "fatigue": 4,
+  "shortness_of_breath": 1,
+  "headache": 3,
+  "diarrhea": 0,
+  "vomiting": 0,
+  "rash": 0,
+  "joint_pain": 2,
+  "chest_pain": 0,
+  "sore_throat": 2,
+  "runny_nose": 1
+}
+```
 
-### Dashboard Service
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/dashboard/summary` | OFFICER+ | Nationwide case counts + per-district breakdown |
-| `GET` | `/dashboard/alerts` | OFFICER+ | Active unresolved alerts |
+> Symptom severity is scored **0–5** (0 = absent, 5 = severe).
 
-### Alert Service
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/alerts` | OFFICER+ | List all active alerts |
-| `PATCH` | `/alerts/{id}/resolve` | OFFICER+ | Mark alert as resolved |
-
-### epiguard-ai (direct)
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/ml/predict` | None | HTTP prediction endpoint (testing / fallback) |
-| `GET` | `/health` | None | Model status + version |
+**Response:**
+```json
+{
+  "risk_score": 0.74,
+  "priority_level": "HIGH",
+  "predicted_disease": "Respiratory"
+}
+```
 
 ---
 
-## Deployment
+### `GET /health` — Health Check
 
-### Kubernetes
+Returns the current system readiness state.
+
+```json
+{
+  "status": "healthy",
+  "model_loaded": true
+}
+```
+
+---
+
+## Model Training
+
+### Train manually:
+
 ```bash
-kubectl apply -f k8s/namespace.yml
-kubectl apply -f k8s/secrets.yml
-kubectl apply -f k8s/postgres/
-kubectl apply -f k8s/redis/
-kubectl apply -f k8s/kafka/
-kubectl apply -f k8s/services/
-kubectl apply -f k8s/ingress/
-
-kubectl get pods -n epiguard
+python app/models/train.py
 ```
 
-### CI/CD Pipeline (GitHub Actions)
-```
-Push to main
-     │
-     ▼
-Run tests (mvn test + pytest)
-     │
-     ▼
-Build Docker images
-     │
-     ▼
-Push → Docker Hub (mahingarodin/epiguard-*)
-     │
-     ▼
-SSH → VPS → kubectl rollout restart
-     │
-     ▼
-Health check all pods
+This will:
+1. Train the model on available data
+2. Evaluate classification performance
+3. Save the trained artifact to `models/epiguard-ai.pkl`
+
+### Evaluation Metrics
+
+Training produces a full evaluation report covering:
+
+- **Accuracy** — overall correct classifications
+- **Precision** — correctness of positive predictions
+- **Recall** — coverage of true positive cases
+- **F1 Score** — harmonic mean of precision and recall
+
+---
+
+## Docker
+
+```bash
+# Build
+docker build -t epiguard-ai .
+
+# Run (exposes REST + gRPC)
+docker run -p 8000:8000 -p 50051:50051 epiguard-ai
 ```
 
 ---
 
-## Environment Variables
+## Testing
 
-| Variable | Used by | Description |
-|---|---|---|
-| `JWT_SECRET` | All Java services | Min 32-char secret for JWT signing |
-| `JWT_EXPIRATION_MS` | Auth | Access token TTL (default `3600000` = 1h) |
-| `POSTGRES_PASSWORD` | All + PostgreSQL | Database password |
-| `REDIS_PASSWORD` | Dashboard + Redis | Cache password |
-| `KAFKA_BOOTSTRAP_SERVERS` | Symptom, Triage, Alert | Kafka broker address |
-| `ML_SERVICE_HOST` | Triage | epiguard-ai hostname |
-| `ML_SERVICE_GRPC_PORT` | Triage | epiguard-ai gRPC port (default `50051`) |
-| `ALERT_THRESHOLD_CASES_PER_HOUR` | Alert | HIGH alert trigger (default `20`) |
-| `ALERT_THRESHOLD_CRITICAL_PER_HOUR` | Alert | CRITICAL alert trigger (default `40`) |
-| `GRPC_PORT` | epiguard-ai | gRPC server port (default `50051`) |
+```bash
+pytest
+```
+
+Test coverage includes feature generation, model inference, and API response validation.
+
+---
+
+## Roadmap
+
+### ✅ Phase 1 — MVP *(current)*
+- [x] Logistic Regression model
+- [x] REST prediction endpoint (`/ml/predict`)
+- [x] gRPC prediction endpoint
+- [x] Basic disease clustering (4 families)
+- [x] Auto-training fallback on startup
+
+### 🔧 Phase 2 — Intelligence Expansion
+- [ ] XGBoost model (improved accuracy)
+- [ ] LightGBM optimization
+- [ ] DBSCAN geographic clustering
+- [ ] Prophet time-series forecasting
+- [ ] SHAP explainability integration
+- [ ] MLflow experiment tracking
+
+### 🚀 Phase 3 — Production AI
+- [ ] Automated model retraining pipeline
+- [ ] Model version control
+- [ ] Prometheus + Grafana monitoring
+- [ ] Model performance drift detection
+- [ ] Rate limiting + authentication
+- [ ] Secure model storage
 
 ---
 
 ## Security
 
-| Control | Implementation |
-|---|---|
-| Authentication | JWT HS256 — 1h access token, 7d refresh token |
-| Authorisation | Role-based access control at gateway + service level |
-| Passwords | BCrypt cost factor 12 |
-| Transport | HTTPS everywhere — TLS termination at k8s ingress |
-| Patient privacy | Zero PII — no names stored anywhere in the system |
-| Kafka | Topic access by service identity |
+**Currently implemented:**
+- Input schema validation (Pydantic)
+- Controlled model loading
+
+**Planned:**
+- API authentication
+- Rate limiting
+- Encrypted model storage
 
 ---
 
-## Project Status
+## Contributing
 
-| Phase | Status |
-|---|---|
-| Backend services (7 services) | ✅ Complete |
-| epiguard-ai Phase 1 (LR model) | ✅ Complete |
-| Database schema + migrations | ✅ Complete |
-| Kafka pipeline (3 topics) | ✅ Complete |
-| Docker + Kubernetes | 🔄 In progress |
-| CI/CD GitHub Actions | 🔄 In progress |
-| Frontend (React + TypeScript) | ⏳ Planned |
-| epiguard-ai Phase 2 (XGBoost, DBSCAN, Prophet) | ⏳ Planned |
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes: `git commit -m 'Add your feature'`
+4. Push and open a pull request
 
 ---
 
 ## Author
 
-**Mahinga Rodin** — Rwanda Coding Academy
-
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-1a202c?style=flat&logo=linkedin&logoColor=0a66c2)](https://linkedin.com/in/mahinga-rodin)
-[![GitHub](https://img.shields.io/badge/GitHub-1a202c?style=flat&logo=github&logoColor=white)](https://github.com/mahingarodin)
-[![Email](https://img.shields.io/badge/Email-1a202c?style=flat&logo=gmail&logoColor=ea4335)](mailto:mahingarodin@gmail.com)
+**Mahinga Rodin**  
+Rwanda Coding Academy  
+[github.com/mahingarodin](https://github.com/mahingarodin)
 
 ---
 
 <div align="center">
-  <sub>Built with Java, Python, Kafka, and a genuine need to detect outbreaks early.</sub>
+
+*Built to detect outbreaks before they escalate.*  
+*Accuracy improves as more data becomes available.*
+
 </div>
