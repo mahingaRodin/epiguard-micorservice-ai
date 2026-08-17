@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EpiGuard AI — Triage Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/demo/styles.css" />
+</head>
+<body>
+  <div class="bg-pattern"></div>
+
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon">🛡</span>
+        <div>
+          <h1>EpiGuard AI</h1>
+          <p>ML Triage &amp; Outbreak Intelligence</p>
+        </div>
+      </div>
+      <nav class="header-nav">
+        <a href="/docs" target="_blank" rel="noopener">Swagger API</a>
+        <a href="/redoc" target="_blank" rel="noopener">ReDoc</a>
+        <a href="/health" target="_blank" rel="noopener">Health</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h2>Interactive Triage Demo</h2>
+      <p>
+        Walk through a sample patient intake flow. Enter demographics and symptoms,
+        then call the live <code>/ml/predict</code> API to get a risk score and priority level.
+      </p>
+      <div class="scenario-buttons">
+        <span class="label">Quick scenarios:</span>
+        <button type="button" class="btn-scenario" data-scenario="respiratory">Respiratory case</button>
+        <button type="button" class="btn-scenario" data-scenario="gastro">GI illness</button>
+        <button type="button" class="btn-scenario" data-scenario="febrile">Febrile case</button>
+        <button type="button" class="btn-scenario" data-scenario="low">Low-risk checkup</button>
+      </div>
+    </section>
+
+    <div class="layout">
+      <form id="triage-form" class="panel form-panel">
+        <div class="steps">
+          <div class="step active" data-step="1"><span>1</span> Patient</div>
+          <div class="step" data-step="2"><span>2</span> Symptoms</div>
+          <div class="step" data-step="3"><span>3</span> Results</div>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="step-content active" id="step-1">
+          <h3>Patient information</h3>
+          <div class="field-grid">
+            <label>
+              Patient ID
+              <input type="text" id="patient_id" name="patient_id" required placeholder="e.g. demo-001" />
+            </label>
+            <label>
+              Age
+              <input type="number" id="age" name="age" min="1" max="150" value="32" required />
+            </label>
+            <label>
+              Gender
+              <select id="gender" name="gender" required>
+                <option value="FEMALE">Female</option>
+                <option value="MALE">Male</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </label>
+            <label>
+              District
+              <select id="district" name="district" required>
+                <option value="Gasabo">Gasabo</option>
+                <option value="Kicukiro">Kicukiro</option>
+                <option value="Nyarugenge">Nyarugenge</option>
+                <option value="Musanze">Musanze</option>
+                <option value="Rubavu">Rubavu</option>
+              </select>
+            </label>
+          </div>
+          <div class="step-actions">
+            <button type="button" class="btn primary" id="to-step-2">Continue to symptoms →</button>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-content" id="step-2">
+          <h3>Symptoms &amp; severity</h3>
+          <p class="hint">Set severity 1 (mild) to 5 (severe). Leave at 0 to omit a symptom.</p>
+          <div id="symptoms-grid" class="symptoms-grid"></div>
+          <div class="step-actions">
+            <button type="button" class="btn ghost" id="back-to-1">← Back</button>
+            <button type="submit" class="btn primary" id="submit-predict">
+              <span class="btn-text">Run triage prediction</span>
+              <span class="spinner hidden"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-content" id="step-3">
+          <h3>Triage result</h3>
+          <div id="result-card" class="result-card hidden">
+            <div class="priority-badge" id="priority-badge">—</div>
+            <div class="risk-meter">
+              <div class="risk-label">
+                <span>Risk score</span>
+                <strong id="risk-score">—</strong>
+              </div>
+              <div class="risk-bar"><div class="risk-fill" id="risk-fill"></div></div>
+            </div>
+            <dl class="result-details">
+              <div><dt>Predicted disease</dt><dd id="predicted-disease">—</dd></div>
+              <div><dt>Model version</dt><dd id="model-version">—</dd></div>
+              <div><dt>Patient</dt><dd id="result-patient">—</dd></div>
+            </dl>
+          </div>
+          <div id="error-box" class="error-box hidden"></div>
+          <div class="step-actions">
+            <button type="button" class="btn ghost" id="restart">Start new case</button>
+            <button type="button" class="btn primary" id="back-to-2">Edit symptoms</button>
+          </div>
+        </div>
+      </form>
+
+      <aside class="panel side-panel">
+        <h3>API request</h3>
+        <pre id="request-preview" class="code-block">{}</pre>
+        <h3>API response</h3>
+        <pre id="response-preview" class="code-block muted">Submit the form to see the live response.</pre>
+        <div class="api-links">
+          <a href="/docs#/Prediction/predict_endpoint_ml_predict_post" target="_blank">Try in Swagger →</a>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>EpiGuard AI · Logistic Regression MVP · <a href="/openapi.json">OpenAPI spec</a></p>
+  </footer>
+
+  <script src="/static/demo/app.js"></script>
+</body>
+</html>

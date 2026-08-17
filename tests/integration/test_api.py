@@ -7,7 +7,9 @@ client = TestClient(app)
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "up"
+    data = response.json()
+    assert data["status"] == "up"
+    assert data["model_loaded"] is True
 
 
 def test_predict_endpoint():

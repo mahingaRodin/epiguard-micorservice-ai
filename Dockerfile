@@ -85,6 +85,7 @@ COPY --from=proto-builder /app/triage_pb2_grpc.py .
 
 # Copy application source
 COPY app/ ./app/
+COPY static/ ./static/
 
 # Model directory — volume-mounted in docker-compose
 # If no volume is mounted, model auto-trains on first boot

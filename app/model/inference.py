@@ -12,6 +12,10 @@ MODEL_VERSION = "1.0.0-lr-mvp"
 _model = None
 
 
+def is_model_loaded() -> bool:
+    return _model is not None
+
+
 def load_model():
     global _model
     model_path = Path(settings.model_path)

@@ -11,8 +11,6 @@
 !.env.example
 *.pem
 *.key
-app/config/settings.py
-
 
 # ─── PYTHON CACHE & BYTECODE ──────────────────────────────────────────────────
 __pycache__/

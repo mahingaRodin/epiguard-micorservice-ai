@@ -1,0 +1,45 @@
+# Production compose — ML API only (no postgres/redis required for inference)
+# Usage on VPS:
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  epiguard-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: epiguard-ai:latest
+    container_name: epiguard-ai-service
+    environment:
+      HTTP_PORT: 8000
+      GRPC_PORT: 50051
+      LOG_LEVEL: INFO
+      MODEL_PATH: /app/app/model/epiguard-ai.pkl
+    ports:
+      - "8000:8000"
+      - "50051:50051"
+    volumes:
+      - model_store:/app/app/model
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: epiguard-ai-nginx
+    depends_on:
+      epiguard-ai:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+volumes:
+  model_store:
+    name: epiguard-ai-model-store

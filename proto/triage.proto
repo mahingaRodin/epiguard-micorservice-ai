@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package epiguard.triage;
+
+service MLTriageService {
+  rpc Predict (PredictRequest) returns (PredictResponse);
+}
+
+message Symptom {
+  string symptom_type = 1;
+  int32 severity = 2;
+}
+
+message PredictRequest {
+  string patient_id = 1;
+  int32 age = 2;
+  string gender = 3;
+  string district = 4;
+  repeated Symptom symptoms = 5;
+}
+
+message PredictResponse {
+  double risk_score = 1;
+  string priority_level = 2;
+  string predicted_disease = 3;
+  string model_version = 4;
+}
