@@ -44,10 +44,31 @@ def _train_bootstrap():
     risk = (symps[:, 0] > 0.5).astype(int) + (symps[:, 1] > 0.5).astype(int) + (symps.sum(axis=1) > 3).astype(int)
     y = np.where(risk >= 2, 2, np.where(risk == 1, 1, 0))
 
-    model = Pipeline([("scaler", StandardScaler()), ("clf", LogisticRegression(max_iter=500, random_state=42))])
+    # Ensure all three priority classes exist so predict_proba always returns 3 columns
+    for label in (0, 1, 2):
+        if label not in y:
+            X = np.vstack([X, X[0:1]])
+            y = np.append(y, label)
+
+    model = Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", LogisticRegression(max_iter=500, random_state=42)),
+    ])
     model.fit(X, y)
     logger.info("Bootstrap model accuracy: %.2f", model.score(X, y))
     return model
+
+
+def _priority_proba(model, features: np.ndarray) -> np.ndarray:
+    """Map sklearn predict_proba output to fixed [LOW, MEDIUM, HIGH] probabilities."""
+    proba = model.predict_proba(features)[0]
+    classes = model.named_steps["clf"].classes_
+    full = np.zeros(3, dtype=np.float64)
+    for i, cls in enumerate(classes):
+        idx = int(cls)
+        if 0 <= idx < 3:
+            full[idx] = proba[i]
+    return full
 
 
 def predict(patient_id: str, age: int, gender: str, district: str, symptoms: list) -> dict:
@@ -55,8 +76,8 @@ def predict(patient_id: str, age: int, gender: str, district: str, symptoms: lis
     if _model is None:
         load_model()
 
-    features  = build_feature_vector(age, gender, symptoms)
-    proba     = _model.predict_proba(features)[0]
+    features = build_feature_vector(age, gender, symptoms)
+    proba = _priority_proba(_model, features)
     label_idx = int(np.argmax(proba))
     risk_score = float(proba[2])
 

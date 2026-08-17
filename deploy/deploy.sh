@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Deploy EpiGuard AI to VPS at http://4.168.192.169/
-# Run on the server as root or a user in the docker group:
-#   curl -fsSL ... | bash
-# Or copy repo to /opt/epiguard-ai and run:
-#   sudo bash deploy/deploy.sh
+# Run from anywhere inside the repo:
+#   bash deploy/deploy.sh
+# Or override the install path:
+#   APP_DIR=/opt/apps/epiguard-ai/epiguard-micorservice-ai bash deploy/deploy.sh
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/epiguard-ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="${APP_DIR:-$(dirname "$SCRIPT_DIR")}"
 REPO_URL="${REPO_URL:-}"
 
 echo "=== EpiGuard AI deployment ==="
+echo "App directory: $APP_DIR"
 
 if ! command -v docker &>/dev/null; then
   echo "Installing Docker..."
@@ -26,10 +28,11 @@ fi
 mkdir -p "$APP_DIR"
 cd "$APP_DIR"
 
-if [ -n "$REPO_URL" ] && [ ! -d .git ]; then
+if [ -n "$REPO_URL" ] && [ ! -f docker-compose.prod.yml ]; then
   git clone "$REPO_URL" .
 elif [ ! -f docker-compose.prod.yml ]; then
-  echo "Place project files in $APP_DIR (docker-compose.prod.yml missing)."
+  echo "docker-compose.prod.yml not found in $APP_DIR"
+  echo "Run this script from the repo root, or set APP_DIR to your clone path."
   exit 1
 fi
 
