@@ -13,6 +13,7 @@ on:
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/epiguard-ai
   PYTHON_VERSION: "3.11"
+  VPS_APP_DIR: /opt/apps/epiguard-ai/epiguard-micorservice-ai
 
 jobs:
   test:
@@ -168,19 +169,6 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Copy compose files to VPS
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          source: "docker-compose.prod.yml,deploy/"
-          target: "/opt/epiguard-ai"
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -190,12 +178,20 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           script: |
             set -e
+            APP_DIR="${{ secrets.VPS_APP_DIR }}"
+            if [ -z "$APP_DIR" ]; then APP_DIR="${{ env.VPS_APP_DIR }}"; fi
 
-            echo "── Syncing project to /opt/epiguard-ai ──"
-            mkdir -p /opt/epiguard-ai
-            cd /opt/epiguard-ai
+            echo "── Deploying to $APP_DIR ──"
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "Repo not found at $APP_DIR — clone it first on the server."
+              exit 1
+            fi
 
-            echo "── Pulling latest image ──"
+            cd "$APP_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "── Pulling latest Docker image ──"
             docker pull ${{ env.DOCKER_IMAGE }}:latest
             docker tag ${{ env.DOCKER_IMAGE }}:latest epiguard-ai:latest
 
